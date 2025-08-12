@@ -11,5 +11,6 @@ Architecture: all
 Depends: parted,
          gdisk,
          ${misc:Depends}
+Recommends:
 Description: Automatically resize the root partition on first boot.
  This package resizes the root partition on first boot using parted.
