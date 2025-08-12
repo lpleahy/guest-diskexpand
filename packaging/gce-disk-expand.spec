@@ -11,19 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-Name: gce-disk-expand
-Summary: Google Compute Engine root disk expansion module
-Epoch: 1
-Version: %{_version}
-Release: g1%{?dist}
-License: Apache Software License
-Group: System Environment/Base
-URL: https://github.com/GoogleCloudPlatform/guest-diskexpand
-Source0: %{name}_%{version}.orig.tar.gz
-Requires: e2fsprogs, dracut, grep, util-linux, parted, gdisk
-Conflicts: dracut-modules-growroot
+Name:          gce-disk-expand
+Summary:       Google Compute Engine root disk expansion module
+Epoch:         1
+Version:       %{_version}
+Release:       g1%{?dist}
+License:       Apache Software License
+Group:         System Environment/Base
+URL:           https://github.com/GoogleCloudPlatform/guest-diskexpand
+Source0:       %{name}_%{version}.orig.tar.gz
 
-BuildArch: noarch
+# Base dependencies for all distributions
+Requires:      e2fsprogs, dracut, grep, util-linux, parted
+
+# gdisk has been deprecated in RHEL 10
+%if 0%{?rhel} < 10
+Requires:      gdisk
+%endif
+
+Conflicts:     dracut-modules-growroot
+
+BuildArch:     noarch
 
 %description
 This package resizes the root partition on first boot using parted.

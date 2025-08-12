@@ -63,8 +63,15 @@ main() {
     kmsg "Resizing disk ${rootdev}"
 
     # First, move the secondary GPT to the end.
-    if ! out=$(sgdisk_fix_gpt "$disk"); then
-      kmsg "Failed to fix GPT: ${out}"
+    # First, move the secondary GPT to the end.
+    if is_rhel10_or_later; then
+      if ! out=$(sfdisk_fix_gpt_backup_header "$disk"); then
+        kmsg "Failed to fix GPT with sfdisk: ${out}"
+      fi
+    else
+      if ! out=$(sgdisk_fix_gpt "$disk"); then
+        kmsg "Failed to fix GPT with sgdisk: ${out}"
+      fi
     fi
 
     if ! out=$(parted_resizepart "$disk" "$partnum"); then

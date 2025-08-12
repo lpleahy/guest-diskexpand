@@ -17,6 +17,21 @@ kmsg() {
   echo "gce-disk-expand: $@" > /dev/kmsg
 }
 
+# Checks if the OS is a RHEL 10+ variant.
+is_rhel10_or_later() {
+  if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    # Check for RHEL-like distributions (ID_LIKE) or specific IDs.
+    # Then check if the major version number is 10 or greater.
+    if [[ "${ID_LIKE}" =~ "rhel" || "${ID}" =~ ^(rhel|centos|rocky|almalinux)$ ]] && \
+       [ -n "${VERSION_ID}" ] && \
+       [ "${VERSION_ID%%.*}" -ge 10 ]; then
+      return 0 # Success, it is RHEL 10+
+    fi
+  fi
+  return 1 # Failure, it is not RHEL 10+
+}
+
 sgdisk_get_label() {
     local root="$1"
     [ -z "$root" ] && return 0
@@ -32,11 +47,27 @@ sgdisk_fix_gpt() {
   local disk="$1"
   [ -z "$disk" ] && return
 
-  local label=$(sgdisk_get_label "$disk")
+  local label
+  label=$(sgdisk_get_label "$disk")
   [ "$label" != "gpt" ] && return
 
   kmsg "Moving GPT header for $disk with sgdisk."
   sgdisk --move-second-header "$disk"
+}
+
+sfdisk_fix_gpt_backup_header() {
+  local disk="$1"
+  [ -z "$disk" ] && return
+
+  # Check for GPT label using sfdisk, which is more reliable than parted.
+  if ! sfdisk --dump "$disk" 2>/dev/null | grep -q "label: gpt"; then
+    return
+  fi
+
+  kmsg "Moving GPT backup header for $disk with sfdisk."
+  if ! out=$(sfdisk --relocate gpt-backup-header "$disk" 2>&1); then
+    kmsg "Failed to move GPT backup header with sfdisk: ${out}"
+  fi
 }
 
 # Returns "disk:partition", supporting multiple block types.
@@ -89,12 +120,19 @@ parted_needresize() {
 
 # Resizes partition using 'resizepart' command.
 parted_resizepart() {
-  local disk="$1" partnum="$2"
+  local disk="$1" partnum="$2" partname=""
   [ -z "$disk" -o -z "$partnum" ] && return
+
+  # Correctly construct partition name for logging, especially for NVMe.
+  if [[ "$disk" == *nvme* ]]; then
+    partname="${disk}p${partnum}"
+  else
+    partname="${disk}${partnum}"
+  fi
 
   kmsg "Resizing $disk partition $partnum with parted."
   if ! out=$(parted -sm "$disk" -- resizepart $partnum -1 2>&1); then
-    kmsg "Unable to resize ${disk}${partnum}: ${out}"
+    kmsg "Unable to resize ${partname}: ${out}"
     return 1
   fi
 }
